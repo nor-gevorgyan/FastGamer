@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">FastGamer</string>
+    <string name="accessibility_service_description">This service helps you perform automated actions.</string>
+</resources>

@@ -1,8 +1,4 @@
 package com.metax.to.androidscreencaster.service;
-import static android.graphics.Bitmap.createBitmap;
-import static androidx.core.math.MathUtils.clamp;
-import static com.metax.to.stream.CameraActivity.getMetaxUrl;
-import static com.metax.to.stream.StreamConsumer.LS_CLOSED;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -38,12 +34,8 @@ import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
-import com.metax.to.androidscreencaster.R;
 import com.metax.to.androidscreencaster.consts.ActivityServiceMessage;
 import com.metax.to.androidscreencaster.consts.ExtraIntent;
-import com.metax.to.stream.LocalHandler;
-import com.metax.to.stream.StreamConsumer;
-import com.metax.to.stream.StreamEncoder;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -54,6 +46,8 @@ import java.util.regex.Pattern;
 
 public final class ScreenCastService extends Service {
 
+    public static final String GOOD = "com.fastGamer.Good";
+    public static final String BAD = "com.fastGamer.BAD";
     private static int FPS = 5;
     private static int configWidth;
     private static int streamQuality;
@@ -64,14 +58,12 @@ public final class ScreenCastService extends Service {
     private MediaProjectionManager mediaProjectionManager;
     private Handler handler;
     private Messenger crossProcessMessenger;
-    private LocalHandler backgroundTask;
+//    private LocalHandler backgroundTask;
     private MediaProjection mediaProjection;
     private MediaProjection mediaProjection2;
     private Surface inputSurface;
     private VirtualDisplay virtualDisplay;
     private MediaCodec.BufferInfo videoBufferInfo;
-    private StreamConsumer streamConsumer;
-    private StreamEncoder streamEncoder = null;
     private String videoSrc;
     private final String defSrcValue = "ScreenCast";
     private final MediaProjection mediaCallback = null;
@@ -153,66 +145,68 @@ public final class ScreenCastService extends Service {
         if (textRecognizer != null ) {
             textRecognizer.close();
         }
-        stopBackgroundThread();
-        stopStreamConsumer();
+//        stopBackgroundThread();
+//        stopStreamConsumer();
         stopScreenCapture();
     }
 
-    private void startStreamConsumer(int width, int height, int rate , String bitrate,  String src) {
-        int dstPort = getResources().getInteger(R.integer.tcpport);
-        if (src.equals(defSrcValue)) {
-            streamConsumer = new StreamConsumer(this, dstPort, getMetaxUrl(this), rate, src, width, height, bitrate);
-            streamConsumer.resume();
-        } else {
-            Log.d(TAG, "onstart Stream COnsumer " + src );
-            streamConsumer = new StreamConsumer(this, dstPort, getMetaxUrl(this), rate, src, width, height, bitrate);
-            streamConsumer.startStreamWithSrc();
-        }
+//    private void startStreamConsumer(int width, int height, int rate , String bitrate,  String src) {
+//        int dstPort = getResources().getInteger(R.integer.tcpport);
+//        if (src.equals(defSrcValue)) {
+//            streamConsumer = new StreamConsumer(this, dstPort, getMetaxUrl(this), rate, src, width, height, bitrate);
+//            streamConsumer.resume();
+//        } else {
+//            Log.d(TAG, "onstart Stream COnsumer " + src );
+//            streamConsumer = new StreamConsumer(this, dstPort, getMetaxUrl(this), rate, src, width, height, bitrate);
+//            streamConsumer.startStreamWithSrc();
+//        }
+//
+//    }
 
-    }
+//    private void stopStreamConsumer() {
+//        if (null != streamConsumer) {
+//            Log.i(TAG, "Stop Stream Consumer");
+//            try {
+//                streamConsumer.pause();
+//                streamConsumer = null;
+//            } catch (Exception e) {
+//                Log.e(TAG, Objects.requireNonNull(e.getMessage()));
+//            }
+//        }
+//    }
 
-    private void stopStreamConsumer() {
-        if (null != streamConsumer) {
-            Log.i(TAG, "Stop Stream Consumer");
-            try {
-                streamConsumer.pause();
-                streamConsumer = null;
-            } catch (Exception e) {
-                Log.e(TAG, Objects.requireNonNull(e.getMessage()));
-            }
-        }
-    }
-
-    private void stopBackgroundThread() {
-        if (backgroundTask != null) {
-            backgroundTask.pause();
-            backgroundTask = null;
-        }
-    }
-
+//    private void stopBackgroundThread() {
+//        if (backgroundTask != null) {
+//            backgroundTask.pause();
+//            backgroundTask = null;
+//        }
+//    }
+//
     private void sendDisconnectedNotification() {
         Log.w(TAG, "Will be sending CLOSED message from ScreenCastService");
         Intent intent = new Intent();
-        intent.setAction(LS_CLOSED);
+//        intent.setAction(LS_CLOSED);
         this.sendBroadcast(intent);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        Log.i("NORGEVORGYAN", "any Log");
         MlKitContext.initializeIfNeeded(this);
         send_notification_for_service();
-        if (backgroundTask == null) {
-            Log.i(TAG, "Creating local background task");
-            backgroundTask = new LocalHandler("screen-caster");
-        }
-
-        backgroundTask.resume();
-        backgroundTask.getHandler().post(() -> {
-            if (intent == null) {
-                Log.w(TAG, "Intent is null on backgroundTAsk");
-            }
-            startCommand(intent, flags, startId);
-        });
+//        if (backgroundTask == null) {
+//            Log.i(TAG, "Creating local background task");
+//            backgroundTask = new LocalHandler("screen-caster");
+//        }
+//
+//        backgroundTask.resume();
+//        backgroundTask.getHandler().post(() -> {
+//            if (intent == null) {
+//                Log.w(TAG, "Intent is null on backgroundTAsk");
+//            }
+//            startCommand(intent, flags, startId);
+//        });
+        startCommand(intent, flags, startId);
         Log.i(TAG, "Scheduled Start command");
         return super.onStartCommand(intent, flags, startId);
     }
@@ -233,18 +227,12 @@ public final class ScreenCastService extends Service {
         videoSrc = intent.getStringExtra(ExtraIntent.VIDEO_SRC.toString());
         messengerWithMain = intent.getParcelableExtra(ExtraIntent.MESSENGER.toString());
 
-        Log.i(TAG, "Start casting screen:" + configWidth + "x" + configHeight + " @ " + screenDpi + " bitrate:" + bitrate);
-        if (videoSrc.equals(defSrcValue)){
             // if ScreenCast
             final int resultCode = intent.getIntExtra(ExtraIntent.RESULT_CODE.toString(), -1);
             final Intent resultData = intent.getParcelableExtra(ExtraIntent.RESULT_DATA.toString());
             if (resultCode == 0 || resultData == null) { return  START_NOT_STICKY; }
             Log.i(TAG, "ScreenCast permission request resultCode: " + resultCode);
             startScreenCapture(resultCode, resultData, configWidth, configHeight, screenDpi, bitrate, streamQuality, FPS);
-        } else {
-            // if User source
-            startStreamConsumer(configWidth, configHeight, FPS, bitrate, videoSrc);
-        }
         Log.i(TAG,"started screenCapture with default source value ->" + defSrcValue);
 
         return START_STICKY;
@@ -275,30 +263,16 @@ public final class ScreenCastService extends Service {
         }
     }
 
-    private void sendMessageToMainThread(int messageHeader,  String[] data) {
+    private void sendMessageToMainThread(String msg) {
         if (messengerWithMain == null) {
             Log.e(TAG, "messenger is null ");
             return;
         }
-        if (data == null ) {
-            Log.e(TAG, "data is null to send message");
-            return;
-        }
         Message message;
-        if (messageHeader == MESSAGE_COORDINATES && data.length > 1) {
-            message = Message.obtain(null, MESSAGE_COORDINATES);
+            message = Message.obtain(null, 777);
             Bundle bundle = new Bundle();
-            bundle.putString("lat", data[0]);
-            bundle.putString("lng", data[1]);
+            bundle.putString("checked", msg);
             message.setData(bundle);
-        } else if (messageHeader == MESSAGE_HEADING && data.length > 0) {
-            message = Message.obtain(null, MESSAGE_HEADING);
-            Bundle bundle = new Bundle();
-            bundle.putString("head", data[0]);
-            message.setData(bundle);
-        } else {
-            return;
-        }
         try {
             messengerWithMain.send(message);
         } catch (Exception e) {
@@ -306,8 +280,6 @@ public final class ScreenCastService extends Service {
         }
     }
 
-    // this function inited VirtualDisplay after that inited imageReader for
-    //  getting raw(RGBA) frame data
     private void initializeImageReader(
             int resultCode, Intent resultData, int width, int height, int dpi) {
         onScreenDetect = true;
@@ -355,24 +327,25 @@ public final class ScreenCastService extends Service {
                             };
                             CompletableFuture.runAsync(longRunningTask);
                         }
-                        if (null != streamConsumer && !liveStreamOnPause) {
-                            Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, configWidth, configHeight, true);
-                            ByteBuffer resizedBuffer = ByteBuffer.allocate(resizedBitmap.getByteCount());
-                            resizedBitmap.copyPixelsToBuffer(resizedBuffer);
-                            byte[] rgbaBytes = resizedBuffer.array();
-                            resizedBitmap.recycle();
-                            streamConsumer.consumeBytes(rgbaBytes, rgbaBytes.length);
-                        }
+//                        if (null != streamConsumer && !liveStreamOnPause) {
+//                            Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, configWidth, configHeight, true);
+//                            ByteBuffer resizedBuffer = ByteBuffer.allocate(resizedBitmap.getByteCount());
+//                            resizedBitmap.copyPixelsToBuffer(resizedBuffer);
+//                            byte[] rgbaBytes = resizedBuffer.array();
+//                            resizedBitmap.recycle();
+//                            streamConsumer.consumeBytes(rgbaBytes, rgbaBytes.length);
+//                        }
                         bitmap.recycle();
+                        sendMessageToMainThread("GOOD");
                         return;
                     }
-                    if (null != streamConsumer && !liveStreamOnPause) {
-                        ByteBuffer resizedBuffer = ByteBuffer.allocate(bitmap.getByteCount());
-                        bitmap.copyPixelsToBuffer(resizedBuffer);
-                        byte[] rgbaBytes = resizedBuffer.array();
-                        // send byte[] to streamConsumer
-                        streamConsumer.consumeBytes(rgbaBytes, rgbaBytes.length);
-                    }
+//                    if (null != streamConsumer && !liveStreamOnPause) {
+//                        ByteBuffer resizedBuffer = ByteBuffer.allocate(bitmap.getByteCount());
+//                        bitmap.copyPixelsToBuffer(resizedBuffer);
+//                        byte[] rgbaBytes = resizedBuffer.array();
+//                        // send byte[] to streamConsumer
+//                        streamConsumer.consumeBytes(rgbaBytes, rgbaBytes.length);
+//                    }
                 } catch (OutOfMemoryError e) {
                     Log.e(TAG, Objects.requireNonNull(e.getMessage()));
                 } finally {
@@ -410,8 +383,8 @@ public final class ScreenCastService extends Service {
         //  Need to change this implementation
         //Bitmap headingBitmap = cropBitmapWithBoundingBox(bitmap, 900, 650, 1020, 820);
         // This block code get prepared bitmap frame (cImage) and launch AI detecting functionality
-        cImage = InputImage.fromBitmap(mutableBitmap, 0);
-        detect(cImage, false);
+//        cImage = InputImage.fromBitmap(mutableBitmap, 0);
+//        detect(cImage, false);
         // FIXME: I commented this block code because there are a bug related with this code,
         //  This code cropped getting captured image and detected heading value using AI,
         //  The bug related with bitmap processing.
@@ -425,33 +398,33 @@ public final class ScreenCastService extends Service {
 //        }
     };
 
-    void detect(InputImage image, Boolean onCheckHeading) {
-        Task<Text> result = textRecognizer.process(image)
-                .addOnSuccessListener(new OnSuccessListener<Text>() {
-                    @Override
-                    public void onSuccess(Text visionText) {
-                        // If available text box to process
-                        if (!visionText.getText().isEmpty()) {
-                            processDetectedText(visionText, onCheckHeading);
-                        } else {
-                            Log.w(TAG, "empty text box");
-                            if (!onCheckHeading) {
-                                positionFoundIndex -= 1;
-                            }
-                        }
-                    }
-                })
-                .addOnFailureListener(
-                        new OnFailureListener() {
-                            @Override
-                            public void onFailure(@NonNull Exception e) {
-                                // Task failed with an exception
-                                positionFoundIndex -= 1;
-                                //mutableBitmap.recycle();
-                                // ...
-                            }
-                        });
-    }
+//    void detect(InputImage image, Boolean onCheckHeading) {
+//        Task<Text> result = textRecognizer.process(image)
+//                .addOnSuccessListener(new OnSuccessListener<Text>() {
+//                    @Override
+//                    public void onSuccess(Text visionText) {
+//                        // If available text box to process
+//                        if (!visionText.getText().isEmpty()) {
+//                            processDetectedText(visionText, onCheckHeading);
+//                        } else {
+//                            Log.w(TAG, "empty text box");
+//                            if (!onCheckHeading) {
+//                                positionFoundIndex -= 1;
+//                            }
+//                        }
+//                    }
+//                })
+//                .addOnFailureListener(
+//                        new OnFailureListener() {
+//                            @Override
+//                            public void onFailure(@NonNull Exception e) {
+//                                // Task failed with an exception
+//                                positionFoundIndex -= 1;
+//                                //mutableBitmap.recycle();
+//                                // ...
+//                            }
+//                        });
+//    }
 
 
 
@@ -459,49 +432,49 @@ public final class ScreenCastService extends Service {
     // and for every line called checkDetectedString() function to find valid coordinates
     // when found valid coordinates the function update positionFoundIndex to 8,
     // and update also variables for cropping next bitmap frames
-    void processDetectedText(Text detectedText, boolean onCheckHeading){
-        boolean coordinatesIsChecked = false;
-        for (Text.TextBlock block : detectedText.getTextBlocks()) {
-            for (Text.Line line: block.getLines()) {
-                if (onCheckHeading) {
-                    String[] validHeading = checkDetectedString(line.getText(), true);
-                    if (validHeading != null ) {
-                        Log.i(TAG, "Detected valid heading ::::::");
-                        sendMessageToMainThread(MESSAGE_HEADING, validHeading);
-                    }
-                    continue;
-                }
-                Rect lineBoundingBox = line.getBoundingBox();
-                String[] validCoordinates = checkDetectedString(line.getText(), false);
-                if (validCoordinates != null) {
-                    Log.i(TAG, "Detected valid coordinates ::::::");
-                sendMessageToMainThread(MESSAGE_COORDINATES, validCoordinates);
-                    if (positionFoundIndex > 0) {
-                        positionFoundIndex = 8;
-                        return;
-                    }
-                    if (lineBoundingBox == null ) {
-                        return;
-                    }
-                    // FIXME: Maybe need to get the value 10  from configs
-                    // +/- 10 to set padding for cropping frame
-                    boxLeft = lineBoundingBox.left - 10;
-                    boxTop = lineBoundingBox.top - 10;
-                    boxRight = lineBoundingBox.right + 10;
-                    boxBottom = lineBoundingBox.bottom + 10;
-                    positionFoundIndex = 8;
-                    coordinatesIsChecked = true;
-                    break;
-                }
-            }
-            if (coordinatesIsChecked && !onCheckHeading) {
-                break;
-            }
-        }
-        if (!coordinatesIsChecked && !onCheckHeading) {
-            positionFoundIndex -= 1;
-        }
-    }
+//    void processDetectedText(Text detectedText, boolean onCheckHeading){
+//        boolean coordinatesIsChecked = false;
+//        for (Text.TextBlock block : detectedText.getTextBlocks()) {
+//            for (Text.Line line: block.getLines()) {
+//                if (onCheckHeading) {
+//                    String[] validHeading = checkDetectedString(line.getText(), true);
+//                    if (validHeading != null ) {
+//                        Log.i(TAG, "Detected valid heading ::::::");
+//                        sendMessageToMainThread(MESSAGE_HEADING, validHeading);
+//                    }
+//                    continue;
+//                }
+//                Rect lineBoundingBox = line.getBoundingBox();
+//                String[] validCoordinates = checkDetectedString(line.getText(), false);
+//                if (validCoordinates != null) {
+//                    Log.i(TAG, "Detected valid coordinates ::::::");
+//                sendMessageToMainThread(MESSAGE_COORDINATES, validCoordinates);
+//                    if (positionFoundIndex > 0) {
+//                        positionFoundIndex = 8;
+//                        return;
+//                    }
+//                    if (lineBoundingBox == null ) {
+//                        return;
+//                    }
+//                    // FIXME: Maybe need to get the value 10  from configs
+//                    // +/- 10 to set padding for cropping frame
+//                    boxLeft = lineBoundingBox.left - 10;
+//                    boxTop = lineBoundingBox.top - 10;
+//                    boxRight = lineBoundingBox.right + 10;
+//                    boxBottom = lineBoundingBox.bottom + 10;
+//                    positionFoundIndex = 8;
+//                    coordinatesIsChecked = true;
+//                    break;
+//                }
+//            }
+//            if (coordinatesIsChecked && !onCheckHeading) {
+//                break;
+//            }
+//        }
+//        if (!coordinatesIsChecked && !onCheckHeading) {
+//            positionFoundIndex -= 1;
+//        }
+//    }
 
     public static Bitmap enlargeBitmap(Bitmap originalBitmap, int enlargementFactor) {
         int originalWidth = originalBitmap.getWidth();
@@ -597,7 +570,7 @@ public final class ScreenCastService extends Service {
         try {
             // Init streamConsumer. The streamConsumer inited on hear to get new stream
             //  configuration every start.
-            startStreamConsumer(width, height, FPS, bitrate, videoSrc);
+//            startStreamConsumer(width, height, FPS, bitrate, videoSrc);
             initializeImageReader(resultCode, resultData, width, height, dpi);
         } catch (Exception e){
             Log.e(TAG, Objects.requireNonNull(e.getMessage()));
@@ -606,20 +579,20 @@ public final class ScreenCastService extends Service {
 
     private void pauseLiveStream(){
         Log.d(TAG, "LiveStreamService on Pause");
-        if (streamConsumer != null) {
-            liveStreamOnPause = true;
-            streamConsumer.pause();
-        }
+//        if (streamConsumer != null) {
+//            liveStreamOnPause = true;
+//            streamConsumer.pause();
+//        }
     }
 
     private void restartLiveStream(){
-        Log.d(TAG, "LiveStreamService restart");
-        liveStreamOnPause = false;
-        if (videoSrc.equals(defSrcValue)) {
-            streamConsumer.resume();
-        } else {
-            streamConsumer.startStreamWithSrc();
-        }
+//        Log.d(TAG, "LiveStreamService restart");
+//        liveStreamOnPause = false;
+//        if (videoSrc.equals(defSrcValue)) {
+//            streamConsumer.resume();
+//        } else {
+//            streamConsumer.startStreamWithSrc();
+//        }
 
     }
 
@@ -638,7 +611,7 @@ public final class ScreenCastService extends Service {
     private void stopScreenCapture() {
         Log.i(TAG, "stop Screen Capture");
         releaseEncoders();
-        stopStreamConsumer();
+//        stopStreamConsumer();
         sendDisconnectedNotification();
         if (virtualDisplay == null) {
             return;
@@ -654,10 +627,10 @@ public final class ScreenCastService extends Service {
 
     private void releaseEncoders() {
 
-        if (streamEncoder != null) {
-            streamEncoder.pause();
-            streamEncoder = null;
-        }
+//        if (streamEncoder != null) {
+//            streamEncoder.pause();
+//            streamEncoder = null;
+//        }
 
         if (inputSurface != null) {
             inputSurface.release();

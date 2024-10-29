@@ -3,6 +3,7 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
@@ -22,6 +23,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.Surface;
 import androidx.annotation.NonNull;
@@ -37,12 +39,21 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 import com.metax.to.androidscreencaster.consts.ActivityServiceMessage;
 import com.metax.to.androidscreencaster.consts.ExtraIntent;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
+import androidx.palette.graphics.Palette;
+
+import org.opencv.android.Utils;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.TermCriteria;
 
 public final class ScreenCastService extends Service {
 
@@ -86,6 +97,7 @@ public final class ScreenCastService extends Service {
     public static int MESSAGE_HEADING = 889;
     private Messenger messengerWithMain;
     private long textDetectInterval = 2000;
+    private boolean test = false ;
 
 
     @Override
@@ -222,7 +234,7 @@ public final class ScreenCastService extends Service {
         configHeight = intent.getIntExtra(ExtraIntent.SCREEN_HEIGHT.toString(), 480);
         screenDpi = intent.getIntExtra(ExtraIntent.SCREEN_DPI.toString(), 96);
         bitrate = intent.getStringExtra(ExtraIntent.VIDEO_BITRATE.toString());
-        FPS = intent.getIntExtra(ExtraIntent.VIDEO_FPS.toString(),5);
+        FPS = intent.getIntExtra(ExtraIntent.VIDEO_FPS.toString(),15);
         streamQuality = intent.getIntExtra((ExtraIntent.STREAM_QUALITY.toString()),0);
         videoSrc = intent.getStringExtra(ExtraIntent.VIDEO_SRC.toString());
         messengerWithMain = intent.getParcelableExtra(ExtraIntent.MESSENGER.toString());
@@ -290,8 +302,8 @@ public final class ScreenCastService extends Service {
         // TODO: Need to investigate imageReaderMaxImages value impact on the stream
         if (onScreenDetect) {
             // FIXME: Need to implement without magic numbers
-            width = 1920;
-            height = 1080;
+            width = 1280;
+            height = 720;
         }
         imageReader = ImageReader.newInstance(
                 width, height, PixelFormat.RGBA_8888, imageReaderMaxImages);
@@ -335,8 +347,11 @@ public final class ScreenCastService extends Service {
 //                            resizedBitmap.recycle();
 //                            streamConsumer.consumeBytes(rgbaBytes, rgbaBytes.length);
 //                        }
-                        bitmap.recycle();
-                        sendMessageToMainThread("GOOD");
+                        Bitmap croppedBitmap =  cropBitmapWithBoundingBox(bitmap, 615,327,656, 345);
+                        saveImage(getApplicationContext(), croppedBitmap, "FastGamerCropped.jpg");
+                        analyzeExtendedColors(bitmap);
+//                        bitmap.recycle();
+//                        sendMessageToMainThread("GOOD");
                         return;
                     }
 //                    if (null != streamConsumer && !liveStreamOnPause) {
@@ -358,6 +373,71 @@ public final class ScreenCastService extends Service {
             }
         }
     }
+
+    private void saveImage(Context context, Bitmap bitmap, String filename) {
+        if (test) return ;
+        test = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Use MediaStore for Android 10 and above
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, filename);
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+            values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/"); // Custom folder in Pictures
+
+            // Insert into MediaStore and get the URI
+            OutputStream outputStream;
+            try {
+                outputStream = context.getContentResolver().openOutputStream(
+                        context.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                );
+            } catch (FileNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+        }
+    }
+
+    public static void analyzeExtendedColors(Bitmap bitmap) {
+        Palette.from(bitmap).generate(new Palette.PaletteAsyncListener() {
+            @Override
+            public void onGenerated(Palette palette) {
+                if (palette == null) return;
+
+                // Get image area to calculate color percentage
+                double totalPixels = bitmap.getWidth() * bitmap.getHeight();
+
+                // Dark Vibrant Swatch
+                Palette.Swatch darkVibrantSwatch = palette.getDarkVibrantSwatch();
+                if (darkVibrantSwatch != null) {
+                    int color = darkVibrantSwatch.getRgb();
+                    int population = darkVibrantSwatch.getPopulation();
+                    double percentage = (population / totalPixels) * 100;
+                    Log.i("ColorAnalyzer", "Dark Vibrant Color: #" + Integer.toHexString(color) + ", Percentage: " + percentage + "%");
+                }
+
+//                // Light Vibrant Swatch
+//                Palette.Swatch lightVibrantSwatch = palette.getLightVibrantSwatch();
+//                if (lightVibrantSwatch != null) {
+//                    int color = lightVibrantSwatch.getRgb();
+//                    int population = lightVibrantSwatch.getPopulation();
+//                    double percentage = (population / totalPixels) * 100;
+//                    Log.i("ColorAnalyzer", "Light Vibrant Color: #" + Integer.toHexString(color) + ", Percentage: " + percentage + "%");
+//                }
+
+                // Dark Muted Swatch
+                Palette.Swatch darkMutedSwatch = palette.getDarkMutedSwatch();
+                if (darkMutedSwatch != null) {
+                    int color = darkMutedSwatch.getRgb();
+                    int population = darkMutedSwatch.getPopulation();
+                    double percentage = (population / totalPixels) * 100;
+                    Log.i("ColorAnalyzer", "Dark Muted Color: #" + Integer.toHexString(color) + ", Percentage: " + percentage + "%");
+                }
+
+            }
+        });
+    }
+
+
     // This function get bitmap and detect text from frame,
     // for detected text called text handler functionality to get valid coordinates
     private  void captureTextFromFrame(Bitmap bitmap) {
@@ -509,45 +589,46 @@ public final class ScreenCastService extends Service {
             return false; // Return false if saving fails
         }
     }
-    // This function get string and check valid coordinates
-    private String[] checkDetectedString(String lineString, Boolean onCheckHeading) {
-        if (onCheckHeading) {
-            String[] words = lineString.split("\\s+");
-            String[] validHeading = new String[1];
-            for (String word : words) {
-                String regex =  "^(0[0-9]{2}|[1-2][0-9]{2}|3[0-5][0-9]|360)$";
-                boolean isValid = Pattern.matches(regex, word);
-                Log.i(TAG, word);
-                if (isValid) {
-                    validHeading[0] = word;
-                    return validHeading;
-                }
+
+    public static Bitmap quantizeColors(Bitmap bitmap, int clusters) {
+        Mat srcMat = new Mat();
+        Utils.bitmapToMat(bitmap, srcMat);
+
+        // Convert image to 3D points for K-means
+        Mat samples = srcMat.reshape(1, srcMat.cols() * srcMat.rows());
+        samples.convertTo(samples, CvType.CV_32F);
+
+        // Apply K-means clustering
+        Mat labels = new Mat();
+        Mat centers = new Mat();
+        Core.kmeans(samples, clusters, labels,
+                new TermCriteria(TermCriteria.EPS + TermCriteria.MAX_ITER, 10, 1.0),
+                1, Core.KMEANS_RANDOM_CENTERS, centers);
+
+        // Map the centers to the original pixels
+        centers.convertTo(centers, CvType.CV_8UC1);
+        Mat quantized = new Mat(srcMat.size(), srcMat.type());
+        int index = 0;
+        for (int y = 0; y < srcMat.rows(); y++) {
+            for (int x = 0; x < srcMat.cols(); x++) {
+                int label = (int) labels.get(index++, 0)[0];
+                double[] centerColor = centers.get(label, 0);
+                quantized.put(y, x, centerColor);
             }
         }
-        String[] words = lineString.split("\\s+");
-        if (words.length < 2) {
-            return null;
-        }
-        // before . 38-47
-        // after . only 5 numbers
-        String regex = "(3[8-9]|4[0-7])\\.\\d{4}\\d.*";
-        int detectedCoord = 0;
-        String[] validCoordinates = new String[2];
-        for (String word : words) {
-            boolean isCoordinate = Pattern.matches(regex, word);
-            if (isCoordinate && word.length() >= 8) {
-                //if on word detected valid coordinate so will be get only first 8 symbols
-                validCoordinates[detectedCoord] = word.substring(0, 8);
-              detectedCoord += 1;
-            }
-            if (detectedCoord == 2) {
-                break;
-            }
-        }
-        if (detectedCoord != 2) {
-            return null;
-        }
-        return validCoordinates;
+
+        // Convert quantized Mat back to Bitmap
+        Bitmap outputBitmap = Bitmap.createBitmap(quantized.cols(), quantized.rows(), Bitmap.Config.ARGB_8888);
+        Utils.matToBitmap(quantized, outputBitmap);
+
+        // Release resources
+        srcMat.release();
+        samples.release();
+        labels.release();
+        centers.release();
+        quantized.release();
+
+        return outputBitmap;
     }
 
     // This function get bitmap and crop parameters return cropped bitmap

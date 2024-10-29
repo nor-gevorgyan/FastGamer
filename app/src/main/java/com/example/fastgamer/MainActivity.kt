@@ -114,6 +114,7 @@ class MainActivity : AppCompatActivity() {
         screenCastRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
                 MainScope().launch {
+                    delay(5000)
                     getScreenCastIntent(result)?.let {
                         startService(it)
                         bindService(it, screenCastServiceConnection, BIND_AUTO_CREATE)

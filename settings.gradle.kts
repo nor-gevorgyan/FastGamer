@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 rootProject.name = "FastGamer"
 include(":app")
 include(":screen-casting")
+include(":opencv")

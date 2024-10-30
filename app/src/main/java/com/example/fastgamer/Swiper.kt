@@ -37,14 +37,15 @@ class Swiper: AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private var isSwiping = false
 
-    fun swiping(to: String) {
+    fun swiping(startX: Float = 350F, to: String) {
+        Log.i("FastGamer", "onSwiping")
         val endX: Float = if (to == "left") {
-            54F
+            startX - startX/2
         } else {
-            540F
+            startX + startX/2
         }
-        Log.i("FastGamer", "Swiping")
-        performSwipe(540F, 1200F, endX, 1200F, 100)
+        performSwipe(startX, 1200F, endX, 1200F, 100)
+        Log.i("FastGamer", "Swiping end")
     }
 
     fun stopSwiping() {

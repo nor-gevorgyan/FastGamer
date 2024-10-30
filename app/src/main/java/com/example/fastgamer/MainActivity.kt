@@ -1,15 +1,12 @@
 package com.example.fastgamer
 
 import android.annotation.SuppressLint
-import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.media.projection.MediaProjectionManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -40,6 +37,11 @@ import kotlinx.coroutines.launch
 import kotlin.system.exitProcess
 
 class MainActivity : AppCompatActivity() {
+    private var onSwipe: Boolean = false
+    private var lastPosition: Int = 0
+    private var screenXCenter: Float = 0F
+    private var gamerPosition: Int = 0
+    private var swiperService: Swiper? = null
     private var screenCastRequest: ActivityResultLauncher<Intent>? = null
     private var mediaProjectorManager: MediaProjectionManager? = null
     private var screenCastServiceMessenger: Messenger? = null
@@ -63,15 +65,7 @@ class MainActivity : AppCompatActivity() {
         @SuppressLint("UnspecifiedRegisterReceiverFlag")
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             Log.i("FastGamer", "$name service is connected.")
-            val filter = IntentFilter().apply {
-                addAction(GOOD)
-                addAction(BAD)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                this@MainActivity.registerReceiver(broadcastReceiver, filter, Service.RECEIVER_EXPORTED)
-            } else {
-                this@MainActivity.registerReceiver(broadcastReceiver, filter)
-            }
+
             screenCastServiceMessenger = Messenger(service)
             val msg = Message.obtain(null, ActivityServiceMessage.CONNECTED)
             msg.replyTo = messenger
@@ -84,7 +78,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         override fun onServiceDisconnected(name: ComponentName) {
-            Log.i("FastGamer", "$name service is disconnected.")
+            Log.i("Com.example.FastGamer", "$name service is disconnected.")
             screenCastServiceMessenger = null
         }
     }
@@ -93,11 +87,11 @@ class MainActivity : AppCompatActivity() {
         if (msg.what == 777) {
             val msg = msg.data.getString("checked")
             Log.d("FastGamer", "Received message : $msg")
+            if (msg.toString() == "1") gamerPosition = 1
+            if (msg.toString() == "-1") gamerPosition = -1
+            gamer(msg.toString())
         }
-        if (msg.what == ScreenCastService.MESSAGE_HEADING) {
-            val newHeading = msg.data.getString("head")
-            Log.i("FastGamer", "Received message heading:  $newHeading")
-        }
+
         false
     })
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -109,52 +103,97 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+        screenXCenter = getScreenCenterX().toFloat()
         mediaProjectorManager = getSystemService(MediaProjectionManager::class.java)
 
-        screenCastRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == RESULT_OK) {
-                MainScope().launch {
-                    delay(5000)
-                    getScreenCastIntent(result)?.let {
-                        startService(it)
-                        bindService(it, screenCastServiceConnection, BIND_AUTO_CREATE)
-                        Log.i(
-                            "FastGamer",
-                            "Screen cast intent:---------------------------------------------------------- $it"
-                        )
+        screenCastRequest =
+            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == RESULT_OK) {
+                    MainScope().launch {
+                        delay(7000)
+                        getScreenCastIntent(result)?.let {
+                            startService(it)
+                            bindService(it, screenCastServiceConnection, BIND_AUTO_CREATE)
+                            launchSwipeService()
+
+                        }
                     }
+
                 }
 
             }
-
-        }
         val buttonStart = findViewById<Button>(R.id.buttonStart)
         buttonStart.setOnClickListener {
             screenCastRequest?.launch(mediaProjectorManager!!.createScreenCaptureIntent())
-            if (!isAccessibilityServiceEnabled()) {
-                // Prompt user to enable Accessibility Service
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+    }
 
+    private fun launchSwipeService() {
+        if (!isAccessibilityServiceEnabled()) {
+            // Prompt user to enable Accessibility Service
+            Log.i("FastGamer", "Accessibility service is not enabled-----------------------------")
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        } else {
+            swiperService = getSwiperService()
+            if (swiperService != null) {
+                Log.i("FastGamer", "Swiper service is initialized")
             } else {
-                val swiperService = getSwiperService()
-                if (swiperService != null) {
-                    MainScope().launch {
-                        var value = 0
-                        while (value < 30) {
-                            //swiperService.swiping("left")
-                            value++
-                            delay(1000)
-                        }
-                    }
-                } else {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Swiper service is not initialized",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+                Toast.makeText(
+                    this@MainActivity,
+                    "Swiper service is not initialized",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
+    }
+
+    private fun gamer(checkerMessage: String) {
+        if (checkerMessage != "BAD") return
+        if(onSwipe) {
+            Log.i("FastGamer", "PENDINGINNGNGNNGNGNNGNGNGNNGNGNNGNNnnnnnnnnnnnnnnnnnnnnnnnnnnnnn")
+            return
+        }
+        onSwipe = true
+        Log.i("FastGamer", "Gamer called with $checkerMessage")
+        if (swiperService == null ) {
+            Log.i("FastGamer", "Swiper service is null")
+            swiperService = getSwiperService()
+            return
+        }
+
+        when (gamerPosition) {
+            -1 -> {
+                swiperService?.swiping(screenXCenter,"right")
+                gamerPosition = 0
+                Log.i("FastGamer", "GAMER Left to center")
+            }
+            0 -> {
+                if (lastPosition == -1) {
+                    swiperService?.swiping(screenXCenter,"right")
+                } else if (lastPosition == 1) {
+                    swiperService?.swiping(screenXCenter, "left")
+                }
+                Log.i("FastGamer", "GAMER center to right ")
+                gamerPosition = 1
+            }
+            1 -> {
+                Log.i("FastGamer", "GAMER right to center")
+                swiperService?.swiping(screenXCenter,"left")
+                gamerPosition = 0
+            }
+        }
+        lastPosition = gamerPosition
+        MainScope().launch {
+            delay(200)
+            onSwipe = false
+        }
+        lastPosition = gamerPosition
+    }
+
+    private fun getScreenCenterX(): Int {
+        val displayMetrics = this@MainActivity.resources.displayMetrics
+        val centerX = displayMetrics.widthPixels / 2
+        return centerX
     }
 
     override fun onDestroy() {

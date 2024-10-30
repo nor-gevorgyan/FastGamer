@@ -28,6 +28,5 @@ dependencies {
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation(libs.androidx.palette)
-    implementation(project(":opencv"))
     //implementation 'com.android.tools.compose:compose-preview-renderer:0.0.1-alpha01'
 }

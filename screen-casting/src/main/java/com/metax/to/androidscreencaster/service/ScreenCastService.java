@@ -1,4 +1,6 @@
 package com.metax.to.androidscreencaster.service;
+import static java.lang.System.exit;
+
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -9,6 +11,7 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.hardware.display.VirtualDisplay;
@@ -26,34 +29,23 @@ import android.os.Messenger;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.Surface;
-import androidx.annotation.NonNull;
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
+
 import com.google.mlkit.common.sdkinternal.MlKitContext;
 import com.google.mlkit.vision.common.InputImage;
-import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 import com.metax.to.androidscreencaster.consts.ActivityServiceMessage;
 import com.metax.to.androidscreencaster.consts.ExtraIntent;
-import java.io.File;
+
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.regex.Pattern;
+
 import androidx.palette.graphics.Palette;
 
-import org.opencv.android.Utils;
-import org.opencv.core.Core;
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
-import org.opencv.core.TermCriteria;
+
 
 public final class ScreenCastService extends Service {
 
@@ -138,6 +130,7 @@ public final class ScreenCastService extends Service {
             // Handle MediaProjection being stopped
             Log.d(TAG, "MediaProjection onStop");
             stopScreenCapture();
+            exit(0);
         }
     };
 
@@ -226,7 +219,7 @@ public final class ScreenCastService extends Service {
     public int startCommand(Intent intent, int flags, int startId) {
         if (intent == null) {
             Log.w(TAG, "Intent is null");
-            return START_NOT_STICKY;
+            exit(0);
         }
         textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
 
@@ -244,7 +237,7 @@ public final class ScreenCastService extends Service {
             final Intent resultData = intent.getParcelableExtra(ExtraIntent.RESULT_DATA.toString());
             if (resultCode == 0 || resultData == null) { return  START_NOT_STICKY; }
             Log.i(TAG, "ScreenCast permission request resultCode: " + resultCode);
-            startScreenCapture(resultCode, resultData, configWidth, configHeight, screenDpi, bitrate, streamQuality, FPS);
+            initializeImageReader(resultCode, resultData, configWidth, configHeight, screenDpi);
         Log.i(TAG,"started screenCapture with default source value ->" + defSrcValue);
 
         return START_STICKY;
@@ -315,51 +308,37 @@ public final class ScreenCastService extends Service {
     }
 
     private class ImageAvailableListener implements ImageReader.OnImageAvailableListener {
+        int debugger = 0;
         @Override
         public void onImageAvailable(ImageReader reader) {
             now = System.currentTimeMillis();
             Image image;
             image = imageReader.acquireLatestImage();
-            if (image != null & (now - lastImageTime >= 1000/ FPS)) {
+            if (image != null & (now - lastImageTime >= 1000/ 15)) {
                 try {
-                    //sendMessageToMainThread("latitude", "longitude");
                     int width = image.getWidth();
                     int height = image.getHeight();
+                    String uniqueFileName = "imagefull_" + System.currentTimeMillis() + ".jpg";
                     ByteBuffer buffer = image.getPlanes()[0].getBuffer();
                     image.close();
                     Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
                     buffer.rewind(); // Rewind the buffer to the beginning
                     bitmap.copyPixelsFromBuffer(buffer);
-                    // full size bitmap
-                    if (onScreenDetect) {
-                        if (now - lastDetectTime >= textDetectInterval) {
-                            lastDetectTime = System.currentTimeMillis();
-                            Runnable longRunningTask = () -> {
-                                captureTextFromFrame(bitmap);
-                            };
-                            CompletableFuture.runAsync(longRunningTask);
+                        Bitmap croppedBitmap = cropBitmapWithBoundingBox(bitmap, 610,327,640, 342);
+                        Bitmap positionBitmap = cropBitmapWithBoundingBox(bitmap, 478, 606, 800,607);
+                        checkPixelsForCrush(croppedBitmap);
+                        if (debugger == 5) {
+                            saveImage(getApplicationContext(), bitmap, uniqueFileName);
+                            saveImage(getApplicationContext(), croppedBitmap, uniqueFileName);
+                            checkPosition(positionBitmap);
+                            debugger = 0;
                         }
-//                        if (null != streamConsumer && !liveStreamOnPause) {
-//                            Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, configWidth, configHeight, true);
-//                            ByteBuffer resizedBuffer = ByteBuffer.allocate(resizedBitmap.getByteCount());
-//                            resizedBitmap.copyPixelsToBuffer(resizedBuffer);
-//                            byte[] rgbaBytes = resizedBuffer.array();
-//                            resizedBitmap.recycle();
-//                            streamConsumer.consumeBytes(rgbaBytes, rgbaBytes.length);
-//                        }
-                        Bitmap croppedBitmap =  cropBitmapWithBoundingBox(bitmap, 615,327,656, 345);
-                        saveImage(getApplicationContext(), croppedBitmap, "FastGamerCropped.jpg");
-                        analyzeExtendedColors(bitmap);
-//                        bitmap.recycle();
+                        debugger = debugger + 1;
+
+                        bitmap.recycle();
 //                        sendMessageToMainThread("GOOD");
                         return;
-                    }
-//                    if (null != streamConsumer && !liveStreamOnPause) {
-//                        ByteBuffer resizedBuffer = ByteBuffer.allocate(bitmap.getByteCount());
-//                        bitmap.copyPixelsToBuffer(resizedBuffer);
-//                        byte[] rgbaBytes = resizedBuffer.array();
-//                        // send byte[] to streamConsumer
-//                        streamConsumer.consumeBytes(rgbaBytes, rgbaBytes.length);
+//
 //                    }
                 } catch (OutOfMemoryError e) {
                     Log.e(TAG, Objects.requireNonNull(e.getMessage()));
@@ -373,17 +352,115 @@ public final class ScreenCastService extends Service {
             }
         }
     }
+    void checkPosition(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int whitePixels = 0;
+        String msg = "";
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                int pixel = bitmap.getPixel(x, y);
 
-    private void saveImage(Context context, Bitmap bitmap, String filename) {
-        if (test) return ;
-        test = true;
+                // Check if the pixel color is close to black
+                if (isPixelCloseToWhite(pixel)) {
+                    whitePixels = whitePixels + 1;
+                    if (whitePixels >= 7) {
+                        if (x < width/2 ) msg = "1";
+                        if (x > width/2 ) msg = "-1";
+                    }
+                }
+            }
+        }
+        if (!msg.isEmpty()) {
+            sendMessageToMainThread(msg);
+        }
+    }
+
+    public static boolean isPixelCloseToWhite(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red > 250 && green > 250 && blue > 180;
+    }
+
+    public static boolean isPixelCloseToRed(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red >=254  && green < 100 && blue < 100;
+    }
+    public static boolean isPixelCloseToWood(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red >= 220 &&
+                red <= 240  &&
+                green >= 120 &&
+                green <= 140 &&
+                blue >= 70 &&
+                blue <= 100;
+    }
+
+    public static boolean isPixelCloseToBlack(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red < 45 && green < 45 && blue < 45;
+    }
+
+    // Method to check all pixels in the bitmap for being close to black
+    public void checkPixelsForCrush(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int blackPixels = 0;
+        int redPixels = 0;
+        int woodPixels = 0;
+        String msg = "";
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                int pixel = bitmap.getPixel(x, y);
+
+                // Check if the pixel color is close to black
+                if (isPixelCloseToBlack(pixel)) {
+                    blackPixels = blackPixels + 1;
+                    if (blackPixels >= 3) {
+                        msg = "BAD";
+                    }
+                }
+                if (isPixelCloseToRed(pixel)) {
+                    redPixels = redPixels + 1;
+                    if (redPixels >= 5) {
+                        msg = "BAD";
+                    }
+                }
+                if (isPixelCloseToWood(pixel)) {
+                    woodPixels = woodPixels + 1;
+                    if (woodPixels >= 3) {
+                        msg = "BAD";
+                    }
+                }
+            }
+        }
+        if (!msg.isEmpty()) {
+            sendMessageToMainThread(msg);
+        }
+    }
+
+    private static void saveImage(Context context, Bitmap bitmap, String filename) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             // Use MediaStore for Android 10 and above
             ContentValues values = new ContentValues();
             values.put(MediaStore.Images.Media.DISPLAY_NAME, filename);
             values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
             values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/"); // Custom folder in Pictures
-
             // Insert into MediaStore and get the URI
             OutputStream outputStream;
             try {
@@ -569,67 +646,26 @@ public final class ScreenCastService extends Service {
         return enlargedBitmap;
     }
 
-    public static boolean saveBitmap(Context context, Bitmap bitmap, String fileName) {
-        try {
-            // Create a file in the app's internal storage directory
-            File file = new File(context.getFilesDir(), fileName);
-
-            // Create a FileOutputStream to write the bitmap to the file
-            FileOutputStream fos = new FileOutputStream(file);
-
-            // Compress and save the bitmap to the file
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
-
-            // Close the FileOutputStream
-            fos.close();
-
-            return true; // Return true if saving is successful
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false; // Return false if saving fails
-        }
-    }
-
-    public static Bitmap quantizeColors(Bitmap bitmap, int clusters) {
-        Mat srcMat = new Mat();
-        Utils.bitmapToMat(bitmap, srcMat);
-
-        // Convert image to 3D points for K-means
-        Mat samples = srcMat.reshape(1, srcMat.cols() * srcMat.rows());
-        samples.convertTo(samples, CvType.CV_32F);
-
-        // Apply K-means clustering
-        Mat labels = new Mat();
-        Mat centers = new Mat();
-        Core.kmeans(samples, clusters, labels,
-                new TermCriteria(TermCriteria.EPS + TermCriteria.MAX_ITER, 10, 1.0),
-                1, Core.KMEANS_RANDOM_CENTERS, centers);
-
-        // Map the centers to the original pixels
-        centers.convertTo(centers, CvType.CV_8UC1);
-        Mat quantized = new Mat(srcMat.size(), srcMat.type());
-        int index = 0;
-        for (int y = 0; y < srcMat.rows(); y++) {
-            for (int x = 0; x < srcMat.cols(); x++) {
-                int label = (int) labels.get(index++, 0)[0];
-                double[] centerColor = centers.get(label, 0);
-                quantized.put(y, x, centerColor);
-            }
-        }
-
-        // Convert quantized Mat back to Bitmap
-        Bitmap outputBitmap = Bitmap.createBitmap(quantized.cols(), quantized.rows(), Bitmap.Config.ARGB_8888);
-        Utils.matToBitmap(quantized, outputBitmap);
-
-        // Release resources
-        srcMat.release();
-        samples.release();
-        labels.release();
-        centers.release();
-        quantized.release();
-
-        return outputBitmap;
-    }
+//    public static boolean saveBitmap(Context context, Bitmap bitmap, String fileName) {
+//        try {
+//            // Create a file in the app's internal storage directory
+//            File file = new File(context.getFilesDir(), fileName);
+//
+//            // Create a FileOutputStream to write the bitmap to the file
+//            FileOutputStream fos = new FileOutputStream(file);
+//
+//            // Compress and save the bitmap to the file
+//            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+//
+//            // Close the FileOutputStream
+//            fos.close();
+//
+//            return true; // Return true if saving is successful
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//            return false; // Return false if saving fails
+//        }
+//    }
 
     // This function get bitmap and crop parameters return cropped bitmap
     public static Bitmap cropBitmapWithBoundingBox(Bitmap bitmap, int left, int top, int right, int bottom) {

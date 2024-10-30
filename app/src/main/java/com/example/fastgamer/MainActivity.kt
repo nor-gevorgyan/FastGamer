@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import kotlin.system.exitProcess
 
 class MainActivity : AppCompatActivity() {
+    private var coinChecker: Int = 0
     private var onSwipe: Boolean = false
     private var lastPosition: Int = 0
     private var screenXCenter: Float = 0F
@@ -87,6 +88,8 @@ class MainActivity : AppCompatActivity() {
         if (msg.what == 777) {
             val msg = msg.data.getString("checked")
             Log.d("FastGamer", "Received message : $msg")
+            if (msg.toString() == "NO_COIN") onNoCoin()
+            if (msg.toString() == "FIND_COIN") coinChecker = 0
             if (msg.toString() == "1") gamerPosition = 1
             if (msg.toString() == "-1") gamerPosition = -1
             gamer(msg.toString())
@@ -147,6 +150,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun onNoCoin() {
+        coinChecker += 1
+        if (coinChecker == 10) {
+            gamer("BAD")
+            coinChecker = 0
+        }
+
+    }
+
     private fun gamer(checkerMessage: String) {
         if (checkerMessage != "BAD") return
         if(onSwipe) {
@@ -168,13 +180,16 @@ class MainActivity : AppCompatActivity() {
                 Log.i("FastGamer", "GAMER Left to center")
             }
             0 -> {
-                if (lastPosition == -1) {
-                    swiperService?.swiping(screenXCenter,"right")
-                } else if (lastPosition == 1) {
+                if (lastPosition == 0) {
                     swiperService?.swiping(screenXCenter, "left")
+                    lastPosition = 1
+                    gamerPosition = 1
+                } else {
+                    swiperService?.swiping(screenXCenter, "right")
+                    lastPosition = 0
+                    gamerPosition = -1
                 }
-                Log.i("FastGamer", "GAMER center to right ")
-                gamerPosition = 1
+
             }
             1 -> {
                 Log.i("FastGamer", "GAMER right to center")
@@ -182,12 +197,10 @@ class MainActivity : AppCompatActivity() {
                 gamerPosition = 0
             }
         }
-        lastPosition = gamerPosition
         MainScope().launch {
             delay(200)
             onSwipe = false
         }
-        lastPosition = gamerPosition
     }
 
     private fun getScreenCenterX(): Int {

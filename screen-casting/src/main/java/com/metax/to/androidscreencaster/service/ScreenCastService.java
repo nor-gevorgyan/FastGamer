@@ -324,12 +324,12 @@ public final class ScreenCastService extends Service {
                     Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
                     buffer.rewind(); // Rewind the buffer to the beginning
                     bitmap.copyPixelsFromBuffer(buffer);
-                        Bitmap croppedBitmap = cropBitmapWithBoundingBox(bitmap, 610,327,640, 342);
+                        Bitmap croppedBitmap = cropBitmapWithBoundingBox(bitmap, 620,327,640, 342);
                         Bitmap positionBitmap = cropBitmapWithBoundingBox(bitmap, 478, 606, 800,607);
                         checkPixelsForCrush(croppedBitmap);
                         if (debugger == 5) {
-                            saveImage(getApplicationContext(), bitmap, uniqueFileName);
-                            saveImage(getApplicationContext(), croppedBitmap, uniqueFileName);
+//                            saveImage(getApplicationContext(), bitmap, uniqueFileName);
+//                            saveImage(getApplicationContext(), croppedBitmap, uniqueFileName);
                             checkPosition(positionBitmap);
                             debugger = 0;
                         }
@@ -352,6 +352,7 @@ public final class ScreenCastService extends Service {
             }
         }
     }
+
     void checkPosition(Bitmap bitmap) {
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
@@ -406,6 +407,42 @@ public final class ScreenCastService extends Service {
                 blue >= 70 &&
                 blue <= 100;
     }
+    public static boolean isPixelCloseToCoin(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red >= 240 &&
+                green <= 60 &&
+                blue >= 130 &&
+                blue <= 150;
+    }
+    public static boolean isPixelCloseToBlue(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red >= 130 &&
+                red <= 150  &&
+                green >= 190 &&
+                green <= 210 &&
+                blue >= 240;
+    }
+
+    public static boolean isPixelCloseToOrange(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red >= 240 &&
+                green >= 110 &&
+                green <= 140 &&
+                blue >= 40 &&
+                blue <= 60;
+    }
 
     public static boolean isPixelCloseToBlack(int pixel) {
         int red = Color.red(pixel);
@@ -413,7 +450,7 @@ public final class ScreenCastService extends Service {
         int blue = Color.blue(pixel);
 
         // Check if each color component is below the threshold
-        return red < 45 && green < 45 && blue < 45;
+        return red < 65 && green < 65 && blue < 70;
     }
 
     // Method to check all pixels in the bitmap for being close to black
@@ -423,34 +460,58 @@ public final class ScreenCastService extends Service {
         int blackPixels = 0;
         int redPixels = 0;
         int woodPixels = 0;
-        String msg = "";
+        int orangePixels = 0;
+        int bluePixels = 0;
+        int coinPixels = 0;
+        String msg = "BAD";
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
                 int pixel = bitmap.getPixel(x, y);
-
                 // Check if the pixel color is close to black
                 if (isPixelCloseToBlack(pixel)) {
                     blackPixels = blackPixels + 1;
                     if (blackPixels >= 3) {
-                        msg = "BAD";
+                        sendMessageToMainThread(msg);
+                        return;
                     }
                 }
                 if (isPixelCloseToRed(pixel)) {
                     redPixels = redPixels + 1;
                     if (redPixels >= 5) {
-                        msg = "BAD";
+                        sendMessageToMainThread(msg);
+                        return;
                     }
                 }
                 if (isPixelCloseToWood(pixel)) {
                     woodPixels = woodPixels + 1;
                     if (woodPixels >= 3) {
-                        msg = "BAD";
+                        sendMessageToMainThread(msg);
+                        return;
                     }
+                }
+                if (isPixelCloseToOrange(pixel)) {
+                    orangePixels = orangePixels + 1;
+                    if (orangePixels >= 3) {
+                        sendMessageToMainThread(msg);
+                        return;
+                    }
+                }
+                if (isPixelCloseToBlue(pixel)) {
+                    bluePixels = bluePixels + 1;
+                    if (bluePixels >= 3) {
+                        sendMessageToMainThread(msg);
+                        return;
+                    }
+                }
+                if (isPixelCloseToCoin(pixel)) {
+                    coinPixels = coinPixels + 1;
                 }
             }
         }
-        if (!msg.isEmpty()) {
-            sendMessageToMainThread(msg);
+        if (coinPixels <= 3) {
+            sendMessageToMainThread("NO_COIN");
+        } else {
+            sendMessageToMainThread("FIND_COIN");
         }
     }
 

@@ -337,11 +337,11 @@ public final class ScreenCastService extends Service {
                         if (startViewCheck == 30) {
                             Bitmap startViewBitmap = cropBitmapWithBoundingBox(bitmap, 500, 684, 770,685);
                             Bitmap stopViewBitmap = cropBitmapWithBoundingBox(bitmap,564,540,580, 545 );
-                            saveImage(getApplicationContext(), stopViewBitmap, "end" + uniqueFileName);
+//                            saveImage(getApplicationContext(), stopViewBitmap, "end" + uniqueFileName);
                             checkEnd(stopViewBitmap);
                             checkStartView(startViewBitmap);
                             startViewCheck = 0;
-                            saveImage(getApplicationContext(), bitmap, uniqueFileName);
+//                            saveImage(getApplicationContext(), bitmap, uniqueFileName);
                         }
                         startViewCheck = startViewCheck + 1;
                         positionCheck = positionCheck + 1;
@@ -566,7 +566,7 @@ public final class ScreenCastService extends Service {
                     blackPixels = blackPixels + 1;
                     if (blackPixels >= 3) {
                         String uniqueFileName = "black" + System.currentTimeMillis() + ".jpg";
-                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
+//                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
                         sendMessageToMainThread(msg);
                         return;
                     }
@@ -574,9 +574,9 @@ public final class ScreenCastService extends Service {
                 if (isPixelCloseToRed(pixel)) {
                     redPixels = redPixels + 1;
                     if (redPixels >= 5) {
-                        sendMessageToMainThread(msg);
+                        sendMessageToMainThread("BAD_RED");
                         String uniqueFileName = "red" + System.currentTimeMillis() + ".jpg";
-                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
+//                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
                         return;
                     }
                 }
@@ -584,7 +584,7 @@ public final class ScreenCastService extends Service {
                     woodPixels = woodPixels + 1;
                     if (woodPixels >= 3) {
                         String uniqueFileName = "wood" + System.currentTimeMillis() + ".jpg";
-                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
+//                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
                         sendMessageToMainThread(msg);
                         return;
                     }
@@ -593,8 +593,8 @@ public final class ScreenCastService extends Service {
                     orangePixels = orangePixels + 1;
                     if (orangePixels >= 3) {
                         String uniqueFileName = "orange" + System.currentTimeMillis() + ".jpg";
-                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
-                        sendMessageToMainThread(msg);
+//                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
+                        sendMessageToMainThread("BAD_ORANGE");
                         return;
                     }
                 }
@@ -602,7 +602,7 @@ public final class ScreenCastService extends Service {
                     bluePixels = bluePixels + 1;
                     if (bluePixels >= 3) {
                         String uniqueFileName = "wood" + System.currentTimeMillis() + ".jpg";
-                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
+//                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
                         sendMessageToMainThread(msg);
                         return;
                     }

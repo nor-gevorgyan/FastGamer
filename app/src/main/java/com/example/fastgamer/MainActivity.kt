@@ -39,6 +39,7 @@ import kotlinx.coroutines.launch
 import kotlin.system.exitProcess
 
 class MainActivity : AppCompatActivity() {
+    private var speed: Long = 300
     private var scouterClickProcess: Boolean = false
     private var blockGamePlay: Boolean = true
     private var coinChecker: Int = 0
@@ -93,12 +94,10 @@ class MainActivity : AppCompatActivity() {
             val msg = msg.data.getString("checked")
             Log.d("FastGamer", "Received message : $msg")
             when (msg.toString()) {
-                "BAD" -> gamer("BAD")
+                "BAD", "BAD_ORANGE", "BAD_RED" -> gamer(msg.toString())
                 "NO_COIN" -> onNoCoin()
                 "FIND_COIN" -> coinChecker = 0
-                "1" -> gamerPosition = 1
-                "0" -> gamerPosition = 0
-                "-1" -> gamerPosition = -1
+                "1", "0", "-1" -> onPositionMessage(msg.toString())
                 "MAIN_VIEW", "END_VIEW" -> startGame(msg.toString())
             }
         }
@@ -121,12 +120,11 @@ class MainActivity : AppCompatActivity() {
             registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
                 if (result.resultCode == RESULT_OK) {
                     MainScope().launch {
-                        delay(7000)
                         getScreenCastIntent(result)?.let {
                             startService(it)
                             bindService(it, screenCastServiceConnection, BIND_IMPORTANT)
                             launchSwipeService()
-                            runFirstRunApp()
+//                            runFirstRunApp()
 
                         }
                     }
@@ -137,6 +135,15 @@ class MainActivity : AppCompatActivity() {
         val buttonStart = findViewById<Button>(R.id.buttonStart)
         buttonStart.setOnClickListener {
             screenCastRequest?.launch(mediaProjectorManager!!.createScreenCaptureIntent())
+        }
+    }
+
+    private fun onPositionMessage(msg: String) {
+        Log.i("com.example.fastRunner.position.msg", "msg > $msg")
+        when(msg) {
+            "1" -> gamerPosition = 1
+            "0" -> gamerPosition = 0
+            "-1" -> gamerPosition = -1
         }
     }
 
@@ -161,7 +168,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun onNoCoin() {
         coinChecker += 1
-        if (coinChecker == 5) {
+        if (coinChecker == 7) {
             gamer("NO_COIN")
             coinChecker = 0
         }
@@ -176,23 +183,36 @@ class MainActivity : AppCompatActivity() {
         }
         val touchX: Float
         val touchY: Float
+        val repeating: Int
         when(msg) {
             "MAIN_VIEW" -> {
                 touchX = 560F
                 touchY = 1494F
+                repeating = 10
             }
             "END_VIEW" -> {
                 touchX = 635F
                 touchY = 304F
+                repeating = 1
             }
             else -> return
         }
         blockGamePlay = true
         CoroutineScope(Dispatchers.Main).launch {
-            delay(100)
-            swiperService?.click(touchX, touchY)
-            delay(50)
-            blockGamePlay = false
+            repeat(repeating) {
+                delay(100)
+                swiperService?.click(touchX, touchY)
+                delay(50)
+                blockGamePlay = false
+            }
+        }
+        CoroutineScope(Dispatchers.Main).launch {
+            speed = 300
+            delay(16000)
+            while (speed >= 80) {
+                delay(3500)
+                speed -= 10
+            }
         }
     }
 
@@ -233,7 +253,6 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun gamer(checkerMessage: String) {
-        if (checkerMessage != "BAD" || checkerMessage != "NO_COIN") return
         if(onSwipe || blockGamePlay) {
             Log.i("FastGamer", "PENDING__________________________________________///////// or blockGamePlay")
             return
@@ -246,6 +265,21 @@ class MainActivity : AppCompatActivity() {
             return
         }
         scouter()
+        MainScope().launch {
+            delay(speed)
+            onSwipe = false
+        }
+        if (checkerMessage == "BAD_ORANGE" || checkerMessage == "BAD_RED") {
+            MainScope().launch {
+                delay(speed)
+                swiperService?.swiping(screenXCenter, "top")
+                Log.i(
+                    "FastGamer",
+                    "GAMER BAD_ORANGE or BAD_RED ----------------------------------0000000000000000000000000000000000000"
+                )
+            }
+            return
+        }
         when (gamerPosition) {
             -1 -> {
                 swiperService?.swiping(screenXCenter,"right")
@@ -262,7 +296,6 @@ class MainActivity : AppCompatActivity() {
                     lastPosition = 0
                     gamerPosition = -1
                 }
-
             }
             1 -> {
                 Log.i("FastGamer", "GAMER right to center")
@@ -270,10 +303,7 @@ class MainActivity : AppCompatActivity() {
                 gamerPosition = 0
             }
         }
-        MainScope().launch {
-            delay(100)
-            onSwipe = false
-        }
+
     }
 
     private fun getScreenCenterX(): Int {

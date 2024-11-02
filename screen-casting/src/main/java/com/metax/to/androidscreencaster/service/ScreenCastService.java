@@ -308,7 +308,8 @@ public final class ScreenCastService extends Service {
     }
 
     private class ImageAvailableListener implements ImageReader.OnImageAvailableListener {
-        int debugger = 0;
+        int positionCheck = 0;
+        int startViewCheck = 0;
         @Override
         public void onImageAvailable(ImageReader reader) {
             now = System.currentTimeMillis();
@@ -324,19 +325,28 @@ public final class ScreenCastService extends Service {
                     Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
                     buffer.rewind(); // Rewind the buffer to the beginning
                     bitmap.copyPixelsFromBuffer(buffer);
-                        Bitmap croppedBitmap = cropBitmapWithBoundingBox(bitmap, 620,327,640, 342);
-                        Bitmap positionBitmap = cropBitmapWithBoundingBox(bitmap, 478, 606, 800,607);
+                        Bitmap croppedBitmap = cropBitmapWithBoundingBox(bitmap, 625,327,640, 337);
                         checkPixelsForCrush(croppedBitmap);
-                        if (debugger == 5) {
+                        if (positionCheck == 5) {
 //                            saveImage(getApplicationContext(), bitmap, uniqueFileName);
 //                            saveImage(getApplicationContext(), croppedBitmap, uniqueFileName);
+                            Bitmap positionBitmap = cropBitmapWithBoundingBox(bitmap, 478, 606, 800,607);
                             checkPosition(positionBitmap);
-                            debugger = 0;
+                            positionCheck = 0;
                         }
-                        debugger = debugger + 1;
+                        if (startViewCheck == 30) {
+                            Bitmap startViewBitmap = cropBitmapWithBoundingBox(bitmap, 500, 684, 770,685);
+                            Bitmap stopViewBitmap = cropBitmapWithBoundingBox(bitmap,564,540,580, 545 );
+                            saveImage(getApplicationContext(), stopViewBitmap, "end" + uniqueFileName);
+                            checkEnd(stopViewBitmap);
+                            checkStartView(startViewBitmap);
+                            startViewCheck = 0;
+                            saveImage(getApplicationContext(), bitmap, uniqueFileName);
+                        }
+                        startViewCheck = startViewCheck + 1;
+                        positionCheck = positionCheck + 1;
 
                         bitmap.recycle();
-//                        sendMessageToMainThread("GOOD");
                         return;
 //
 //                    }
@@ -351,6 +361,33 @@ public final class ScreenCastService extends Service {
                 image.close();
             }
         }
+    }
+
+    void checkEnd(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int orangePixels = 0;
+        String msg = "";
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                int pixel = bitmap.getPixel(x, y);
+                if (isPixelCloseToStartViewEnd(pixel)) orangePixels = orangePixels + 1;
+            }
+        }
+        if (orangePixels >= 10) sendMessageToMainThread("END_VIEW");
+
+    }
+    public static boolean isPixelCloseToStartViewEnd(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red >= 240 &&
+                green >= 190 &&
+                green <= 200 &&
+                blue >= 90 &&
+                blue <= 100;
     }
 
     void checkPosition(Bitmap bitmap) {
@@ -368,13 +405,31 @@ public final class ScreenCastService extends Service {
                     if (whitePixels >= 7) {
                         if (x < width/2 ) msg = "1";
                         if (x > width/2 ) msg = "-1";
+                        sendMessageToMainThread(msg);
+                        return;
                     }
                 }
             }
         }
-        if (!msg.isEmpty()) {
-            sendMessageToMainThread(msg);
+        sendMessageToMainThread("0");
+    }
+
+    void checkStartView(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int orangePixels = 0;
+        int greenPixels = 0;
+        int bluePixels = 0;
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                int pixel = bitmap.getPixel(x, y);
+                if (isPixelCloseToStartViewGreen(pixel)) greenPixels = greenPixels + 1;
+                if (isPixelCloseToStartViewOrange(pixel)) orangePixels = orangePixels + 1;
+                if (isPixelCloseToStartViewBlue(pixel)) bluePixels = bluePixels + 1;
+            }
         }
+        if (orangePixels >= 10 && greenPixels >= 10 && bluePixels >= 10) sendMessageToMainThread("MAIN_VIEW");
+
     }
 
     public static boolean isPixelCloseToWhite(int pixel) {
@@ -443,6 +498,45 @@ public final class ScreenCastService extends Service {
                 blue >= 40 &&
                 blue <= 60;
     }
+    public static boolean isPixelCloseToStartViewOrange(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red >= 250 &&
+                green >= 160 &&
+                green <= 170 &&
+                blue >= 20 &&
+                blue <= 30;
+    }
+    public static boolean isPixelCloseToStartViewGreen(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red >= 190 &&
+                red <= 200 &&
+                green >= 230 &&
+                green <= 245 &&
+                blue >= 80 &&
+                blue <= 90;
+    }
+
+    public static boolean isPixelCloseToStartViewBlue(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red >= 60 &&
+                red <= 70 &&
+                green >= 145 &&
+                green <= 155 &&
+                blue >= 230 &&
+                blue <= 245;
+    }
 
     public static boolean isPixelCloseToBlack(int pixel) {
         int red = Color.red(pixel);
@@ -471,6 +565,8 @@ public final class ScreenCastService extends Service {
                 if (isPixelCloseToBlack(pixel)) {
                     blackPixels = blackPixels + 1;
                     if (blackPixels >= 3) {
+                        String uniqueFileName = "black" + System.currentTimeMillis() + ".jpg";
+                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
                         sendMessageToMainThread(msg);
                         return;
                     }
@@ -479,12 +575,16 @@ public final class ScreenCastService extends Service {
                     redPixels = redPixels + 1;
                     if (redPixels >= 5) {
                         sendMessageToMainThread(msg);
+                        String uniqueFileName = "red" + System.currentTimeMillis() + ".jpg";
+                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
                         return;
                     }
                 }
                 if (isPixelCloseToWood(pixel)) {
                     woodPixels = woodPixels + 1;
                     if (woodPixels >= 3) {
+                        String uniqueFileName = "wood" + System.currentTimeMillis() + ".jpg";
+                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
                         sendMessageToMainThread(msg);
                         return;
                     }
@@ -492,6 +592,8 @@ public final class ScreenCastService extends Service {
                 if (isPixelCloseToOrange(pixel)) {
                     orangePixels = orangePixels + 1;
                     if (orangePixels >= 3) {
+                        String uniqueFileName = "orange" + System.currentTimeMillis() + ".jpg";
+                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
                         sendMessageToMainThread(msg);
                         return;
                     }
@@ -499,6 +601,8 @@ public final class ScreenCastService extends Service {
                 if (isPixelCloseToBlue(pixel)) {
                     bluePixels = bluePixels + 1;
                     if (bluePixels >= 3) {
+                        String uniqueFileName = "wood" + System.currentTimeMillis() + ".jpg";
+                        saveImage(getApplicationContext(), bitmap, uniqueFileName);
                         sendMessageToMainThread(msg);
                         return;
                     }

@@ -39,12 +39,17 @@ class Swiper: AccessibilityService() {
 
     fun swiping(startX: Float = 350F, to: String) {
         Log.i("FastGamer", "onSwiping")
-        val endX: Float = if (to == "left") {
-            startX - startX/2
-        } else {
-            startX + startX/2
-        }
-        performSwipe(startX, 1200F, endX, 1200F, 100)
+        var endY = 1200F
+        val endX: Float
+        if (to == "left") {
+            endX =  startX - startX/2
+        } else if (to == "right") {
+            endX =  startX + startX / 2
+        } else if(to == "top") {
+            endX = startX
+            endY = 800f
+        } else return
+        performSwipe(startX, 1200F, endX, endY, 100)
         Log.i("FastGamer", "Swiping end")
     }
 
@@ -52,8 +57,20 @@ class Swiper: AccessibilityService() {
         isSwiping = false
         handler.removeCallbacksAndMessages(null)
     }
+    fun click(x: Float, y: Float) {
+        // Create a path for the tap
+        val path = Path().apply {
+            moveTo(x, y)
+        }
 
-    private fun performSwipe(startX: Float, startY: Float, endX: Float, endY: Float, duration: Long) {
+        // Create a gesture for a single tap with a short duration (e.g., 50ms)
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 50))
+            .build()
+        dispatchGesture(gesture, null, null)
+    }
+
+        private fun performSwipe(startX: Float, startY: Float, endX: Float, endY: Float, duration: Long) {
         val path = Path().apply {
             moveTo(startX, startY)
             lineTo(endX, endY)

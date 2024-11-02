@@ -31,12 +31,16 @@ import com.metax.to.androidscreencaster.consts.ExtraIntent
 import com.metax.to.androidscreencaster.service.ScreenCastService
 import com.metax.to.androidscreencaster.service.ScreenCastService.BAD
 import com.metax.to.androidscreencaster.service.ScreenCastService.GOOD
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.system.exitProcess
 
 class MainActivity : AppCompatActivity() {
+    private var scouterClickProcess: Boolean = false
+    private var blockGamePlay: Boolean = true
     private var coinChecker: Int = 0
     private var onSwipe: Boolean = false
     private var lastPosition: Int = 0
@@ -88,11 +92,15 @@ class MainActivity : AppCompatActivity() {
         if (msg.what == 777) {
             val msg = msg.data.getString("checked")
             Log.d("FastGamer", "Received message : $msg")
-            if (msg.toString() == "NO_COIN") onNoCoin()
-            if (msg.toString() == "FIND_COIN") coinChecker = 0
-            if (msg.toString() == "1") gamerPosition = 1
-            if (msg.toString() == "-1") gamerPosition = -1
-            gamer(msg.toString())
+            when (msg.toString()) {
+                "BAD" -> gamer("BAD")
+                "NO_COIN" -> onNoCoin()
+                "FIND_COIN" -> coinChecker = 0
+                "1" -> gamerPosition = 1
+                "0" -> gamerPosition = 0
+                "-1" -> gamerPosition = -1
+                "MAIN_VIEW", "END_VIEW" -> startGame(msg.toString())
+            }
         }
 
         false
@@ -116,8 +124,9 @@ class MainActivity : AppCompatActivity() {
                         delay(7000)
                         getScreenCastIntent(result)?.let {
                             startService(it)
-                            bindService(it, screenCastServiceConnection, BIND_AUTO_CREATE)
+                            bindService(it, screenCastServiceConnection, BIND_IMPORTANT)
                             launchSwipeService()
+                            runFirstRunApp()
 
                         }
                     }
@@ -152,27 +161,91 @@ class MainActivity : AppCompatActivity() {
 
     private fun onNoCoin() {
         coinChecker += 1
-        if (coinChecker == 10) {
-            gamer("BAD")
+        if (coinChecker == 5) {
+            gamer("NO_COIN")
             coinChecker = 0
         }
-
     }
 
-    private fun gamer(checkerMessage: String) {
-        if (checkerMessage != "BAD") return
-        if(onSwipe) {
-            Log.i("FastGamer", "PENDINGINNGNGNNGNGNNGNGNGNNGNGNNGNNnnnnnnnnnnnnnnnnnnnnnnnnnnnnn")
+    private fun startGame(msg: String) {
+
+        if (swiperService == null ) {
+            Log.i("FastGamer", "Swiper service is null")
+            swiperService = getSwiperService()
             return
         }
-        onSwipe = true
+        val touchX: Float
+        val touchY: Float
+        when(msg) {
+            "MAIN_VIEW" -> {
+                touchX = 560F
+                touchY = 1494F
+            }
+            "END_VIEW" -> {
+                touchX = 635F
+                touchY = 304F
+            }
+            else -> return
+        }
+        blockGamePlay = true
+        CoroutineScope(Dispatchers.Main).launch {
+            delay(100)
+            swiperService?.click(touchX, touchY)
+            delay(50)
+            blockGamePlay = false
+        }
+    }
+
+    private fun runFirstRunApp() {
+//        val packageName = "com.firstrun.socialgameing"
+        val packageName = "com.google.android.youtube"
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+        if (intent != null) {
+            startActivity(intent)
+        } else {
+            Toast.makeText(this, "App not installed", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun scouter() {
+        if (scouterClickProcess) return
+        scouterClickProcess = true
+        CoroutineScope(Dispatchers.Main).launch {
+            MainScope().launch {
+                Log.i("FastGamer", "Scouter process Started")
+                while (scouterClickProcess) {
+                    Log.i("FastGamer", "Scouter TEST---------------------------")
+                    if (!blockGamePlay && swiperService != null) {
+                        onSwipe = true
+                        Log.i("FastGamer", "Scouter steep-----------============================================================================----------------")
+                        swiperService?.click(342F, 1000F)
+                        delay(30)
+                        swiperService?.click(342F, 1000F)
+                        delay(20)
+                        onSwipe = false
+                    }
+                    delay(3000)
+                }
+            }
+        }
+    }
+
+
+
+    private fun gamer(checkerMessage: String) {
+        if (checkerMessage != "BAD" || checkerMessage != "NO_COIN") return
+        if(onSwipe || blockGamePlay) {
+            Log.i("FastGamer", "PENDING__________________________________________///////// or blockGamePlay")
+            return
+        }
+        if(checkerMessage != "NO_COIN") onSwipe = true
         Log.i("FastGamer", "Gamer called with $checkerMessage")
         if (swiperService == null ) {
             Log.i("FastGamer", "Swiper service is null")
             swiperService = getSwiperService()
             return
         }
-
+        scouter()
         when (gamerPosition) {
             -1 -> {
                 swiperService?.swiping(screenXCenter,"right")
@@ -198,7 +271,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         MainScope().launch {
-            delay(200)
+            delay(100)
             onSwipe = false
         }
     }
@@ -212,6 +285,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         stopLivestream()
+        scouterClickProcess = false
         exitProcess(0)
     }
 

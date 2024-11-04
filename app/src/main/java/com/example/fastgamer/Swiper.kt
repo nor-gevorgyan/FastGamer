@@ -65,7 +65,7 @@ class Swiper: AccessibilityService() {
 
         // Create a gesture for a single tap with a short duration (e.g., 50ms)
         val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, 50))
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 250))
             .build()
         dispatchGesture(gesture, null, null)
     }

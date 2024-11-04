@@ -337,9 +337,11 @@ public final class ScreenCastService extends Service {
                         if (startViewCheck == 30) {
                             Bitmap startViewBitmap = cropBitmapWithBoundingBox(bitmap, 500, 684, 770,685);
                             Bitmap stopViewBitmap = cropBitmapWithBoundingBox(bitmap,564,540,580, 545 );
-//                            saveImage(getApplicationContext(), stopViewBitmap, "end" + uniqueFileName);
+                            Bitmap pauseViewBitmap = cropBitmapWithBoundingBox(bitmap, 568,345,700, 350);
+//                            saveImage(getApplicationContext(), bitmap, "end" + uniqueFileName);
                             checkEnd(stopViewBitmap);
                             checkStartView(startViewBitmap);
+                            checkPauseView(pauseViewBitmap);
                             startViewCheck = 0;
 //                            saveImage(getApplicationContext(), bitmap, uniqueFileName);
                         }
@@ -377,6 +379,51 @@ public final class ScreenCastService extends Service {
         if (orangePixels >= 10) sendMessageToMainThread("END_VIEW");
 
     }
+
+    void checkPauseView(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int orangePixels = 0;
+        int greenPixels = 0;
+        int bluePixels = 0;
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                int pixel = bitmap.getPixel(x, y);
+                if (isPixelCloseToStartViewPauseRed(pixel)) greenPixels = greenPixels + 1;
+                if (isPixelCloseToStartViewPauseGreen(pixel)) orangePixels = orangePixels + 1;
+            }
+        }
+        if (orangePixels >= 8 && greenPixels >= 8) sendMessageToMainThread("PAUSE_VIEW");
+
+    }
+
+    public static boolean isPixelCloseToStartViewPauseRed(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red >= 250 &&
+                green >= 80 &&
+                green <= 100 &&
+                blue >= 20 &&
+                blue <= 50;
+    }
+
+    public static boolean isPixelCloseToStartViewPauseGreen(int pixel) {
+        int red = Color.red(pixel);
+        int green = Color.green(pixel);
+        int blue = Color.blue(pixel);
+
+        // Check if each color component is below the threshold
+        return red >= 180 &&
+                red <= 210 &&
+                green >= 230 &&
+                blue >= 80 &&
+                blue <= 100;
+    }
+
+
     public static boolean isPixelCloseToStartViewEnd(int pixel) {
         int red = Color.red(pixel);
         int green = Color.green(pixel);

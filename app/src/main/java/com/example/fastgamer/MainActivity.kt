@@ -98,7 +98,7 @@ class MainActivity : AppCompatActivity() {
                 "NO_COIN" -> onNoCoin()
                 "FIND_COIN" -> coinChecker = 0
                 "1", "0", "-1" -> onPositionMessage(msg.toString())
-                "MAIN_VIEW", "END_VIEW" -> startGame(msg.toString())
+                "MAIN_VIEW", "END_VIEW", "PAUSE_VIEW" -> startGame(msg.toString())
             }
         }
 
@@ -195,6 +195,11 @@ class MainActivity : AppCompatActivity() {
                 touchY = 304F
                 repeating = 1
             }
+            "PAUSE_VIEW" -> {
+                touchX = 440F
+                touchY = 748F
+                repeating = 10
+            }
             else -> return
         }
         blockGamePlay = true
@@ -237,12 +242,14 @@ class MainActivity : AppCompatActivity() {
                     Log.i("FastGamer", "Scouter TEST---------------------------")
                     if (!blockGamePlay && swiperService != null) {
                         onSwipe = true
+                        delay(80)
                         Log.i("FastGamer", "Scouter steep-----------============================================================================----------------")
                         swiperService?.click(342F, 1000F)
-                        delay(30)
+                        delay(100)
                         swiperService?.click(342F, 1000F)
-                        delay(20)
+
                         onSwipe = false
+
                     }
                     delay(3000)
                 }
